@@ -1,59 +1,68 @@
 function login(email, password, callback) {
-    var request = require('request');
-    var jwt = require('jsonwebtoken@7.1.9');
-    var jwks = require('jwks-rsa@1.1.1');
 
-    var options = {
-        method: 'POST',
-        url: configuration.domain + '/oauth/token',
-        headers: { 'content-type': 'application/json' },
-        body: {
-            grant_type: 'password',
-            username: email,
-            password: password,
-            scope: 'openid profile email address phone',
-            client_id: configuration.client_id,
-            client_secret: configuration.client_secret
-        },
-        json: true
-    };
+    // dependencies
 
-    request(options, function (error, response, body) {
-        if (error) throw new Error(error);
+    const Promise = require('bluebird@3.5.0');
+    const rp = require('request-promise@1.0.2');
+    const jwt = require('jsonwebtoken@7.1.9');
+    const jwks = require('jwks-rsa@1.1.1');
 
-        var token = null;
-        try {
-            token = jwt.decode(body.id_token, { complete: true });
-        } catch (verificationError) {
-            callback(verificationError);
-            return;
-        }
+    // helpers
 
+    function getTokenRequestOptions() {
+        return {
+            method: 'POST',
+            url: configuration.domain + '/oauth/token',
+            headers: { 'content-type': 'application/json' },
+            body: {
+                grant_type: 'password',
+                username: email,
+                password: password,
+                scope: 'openid',
+                client_id: configuration.client_id,
+                client_secret: configuration.client_secret
+            },
+            json: true
+        };
+    }
+
+    function validateTokenHeader(token) {
         if (!token || !token.header ||
             token.header.typ !== 'JWT' || token.header.alg !== 'RS256') {
             throw new Error('Security error - invalid token');
         }
 
-        var jwksClient = jwks({
-            jwksUri: configuration.domain + '/.well-known/jwks.json'
-        });
+        return token;
+    }
 
-        jwksClient.getSigningKey(token.header.kid, function (err, key) {
-            var signingKey = key.publicKey || key.rsaPublicKey;
-
-            try {
-                jwt.verify(body.id_token, signingKey, { algorithms: ['RS256'] });
-            } catch (verificationError) {
-                throw new Error(verificationError);
-            }
-
-            var payload = token.payload;
-
-            callback(null, {
-                id: payload.sub,
-                email: payload.email,
-                nickname: payload.nickname
+    function getSigningKey(keyId) {
+        return new Promise((resolve, reject) => {
+            const jwksClient = jwks({
+                jwksUri: configuration.domain + '/.well-known/jwks.json'
             });
-        });
-    });
+
+            jwksClient.getSigningKey(keyId, function (err, key) {
+                if (err) return reject(err);
+                return resolve(key.publicKey || key.rsaPublicKey);
+            });
+        })
+    }
+
+    // actual execution flow
+
+    rp(getTokenRequestOptions())
+        .then(res => {
+            const idToken = res.id_token;
+
+            return Promise.resolve(jwt.decode(idToken, { complete: true }))
+                .then(t => validateTokenHeader(t))
+                .then(t => getSigningKey(t.header.kid))
+                .then(k => jwt.verify(idToken, k, { algorithms: ['RS256'] }));
+        })
+        .then(p => callback(null, {
+            id: p.sub,
+            email: p.email,
+            nickname: p.nickname
+        }))
+        .catch(err => callback(new Error(err)));
 }
