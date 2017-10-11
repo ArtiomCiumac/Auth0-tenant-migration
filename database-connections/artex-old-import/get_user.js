@@ -77,7 +77,10 @@ function getByEmail(name, callback) {
         })
         .then(accessToken => rp(getUsersRequestOptions(accessToken)))
         .then(res => {
-            if (!res || !res.length || res.length === 0) throw new Error("No user found");
+            if (!res || !res.length ||
+                res.length === 0 || res[0].email !== name) {
+                throw new Error("No user found");
+            }
 
             var profile = res[0];
 
