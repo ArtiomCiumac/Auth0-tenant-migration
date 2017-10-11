@@ -1,19 +1,48 @@
-function getByEmail(email, callback) {
-    // This script should retrieve a user profile from your existing database,
-    // without authenticating the user.
-    // It is used to check if a user exists before executing flows that do not
-    // require authentication (signup and password reset).
-    //
-    // There are three ways this script can finish:
-    // 1. A user was successfully found. The profile should be in the following
-    // format: https://auth0.com/docs/user-profile/normalized.
-    //     callback(null, profile);
-    // 2. A user was not found
-    //     callback(null);
-    // 3. Something went wrong while trying to reach your database:
-    //     callback(new Error("my error message"));
+function getByEmail(name, callback) {
+    var request = require("request");
 
-    var msg = "Please implement the Get User script for this database connection "
-        + "at https://manage.auth0.com/#/connections/database";
-    return callback(new Error(msg));
+    var options = {
+        method: 'POST',
+        url: configuration.domain + '/oauth/token',
+        headers: { 'content-type': 'application/json' },
+        body:
+        {
+            client_id: configuration.client_id,
+            client_secret: configuration.client_secret,
+            audience: configuration.domain + '/api/v2/',
+            grant_type: 'client_credentials'
+        },
+        json: true
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        var token = body.access_token;
+
+        // TODO: validate token
+
+        var listOptions = {
+            method: 'GET',
+            url: configuration.domain + '/api/v2/users',
+            headers: {
+                'content-type': 'application/json',
+                Authorization: 'Bearer ' + token
+            },
+            qs: {
+                q: 'email:"' + name + '"',
+                page: 0,
+                per_page: 1
+            },
+            json: true
+        };
+
+        request(listOptions, function (error, response, body) {
+            if (!body || !body.length || body.length === 0) throw new Error("No user found");
+
+            var profile = body[0];
+           
+            callback(null, profile);
+        });
+    });
 }

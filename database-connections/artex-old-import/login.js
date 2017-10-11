@@ -1,38 +1,59 @@
 function login(email, password, callback) {
-    // This script should authenticate a user against the credentials stored in
-    // your database.
-    // It is executed when a user attempts to log in or immediately after signing
-    // up (as a verification that the user was successfully signed up).
-    // 
-    // Everything returned by this script will be set as part of the user profile
-    // and will be visible by any of the tenant admins. Avoid adding attributes 
-    // with values such as passwords, keys, secrets, etc.
-    //
-    // The `password` parameter of this function is in plain text. It must be
-    // hashed/salted to match whatever is stored in your database. For example:
-    //
-    //     var bcrypt = require('bcrypt@0.8.5');
-    //     bcrypt.compare(password, dbPasswordHash, function(err, res)) { ... }
-    //
-    // There are three ways this script can finish:
-    // 1. The user's credentials are valid. The returned user profile should be in
-    // the following format: https://auth0.com/docs/user-profile/normalized
-    //     var profile = {
-    //       user_id: ..., // user_id is mandatory
-    //       email: ...,
-    //       [...]
-    //     };
-    //     callback(null, profile);
-    // 2. The user's credentials are invalid
-    //     callback(new WrongUsernameOrPasswordError(email, "my error message"));
-    // 3. Something went wrong while trying to reach your database
-    //     callback(new Error("my error message"));
-    //
-    // A list of Node.js modules which can be referenced is available here:
-    //
-    //    https://tehsis.github.io/webtaskio-canirequire/
+    var request = require('request');
+    var jwt = require('jsonwebtoken@7.1.9');
+    var jwks = require('jwks-rsa@1.1.1');
 
-    var msg = "Please implement the Login script for this database connection "
-        + "at https://manage.auth0.com/#/connections/database";
-    return callback(new Error(msg));
+    var options = {
+        method: 'POST',
+        url: configuration.domain + '/oauth/token',
+        headers: { 'content-type': 'application/json' },
+        body: {
+            grant_type: 'password',
+            username: email,
+            password: password,
+            scope: 'openid profile email address phone',
+            client_id: configuration.client_id,
+            client_secret: configuration.client_secret
+        },
+        json: true
+    };
+
+    request(options, function (error, response, body) {
+        if (error) throw new Error(error);
+
+        var token = null;
+        try {
+            token = jwt.decode(body.id_token, { complete: true });
+        } catch (verificationError) {
+            callback(verificationError);
+            return;
+        }
+
+        if (!token || !token.header ||
+            token.header.typ !== 'JWT' || token.header.alg !== 'RS256') {
+            throw new Error('Security error - invalid token');
+        }
+
+        var jwksClient = jwks({
+            jwksUri: configuration.domain + '/.well-known/jwks.json'
+        });
+
+        jwksClient.getSigningKey(token.header.kid, function (err, key) {
+            var signingKey = key.publicKey || key.rsaPublicKey;
+
+            try {
+                jwt.verify(body.id_token, signingKey, { algorithms: ['RS256'] });
+            } catch (verificationError) {
+                throw new Error(verificationError);
+            }
+
+            var payload = token.payload;
+
+            callback(null, {
+                id: payload.sub,
+                email: payload.email,
+                nickname: payload.nickname
+            });
+        });
+    });
 }
