@@ -48,6 +48,10 @@ function login(email, password, callback) {
         })
     }
 
+    function fixUserId(userId) {
+        return userId.replace(/^auth0\|/i, "");
+    }
+
     // actual execution flow
 
     rp(getTokenRequestOptions())
@@ -60,7 +64,7 @@ function login(email, password, callback) {
                 .then(k => jwt.verify(idToken, k, { algorithms: ['RS256'] }));
         })
         .then(p => callback(null, {
-            id: p.sub,
+            id: fixUserId(p.sub),
             email: p.email,
             nickname: p.nickname
         }))
