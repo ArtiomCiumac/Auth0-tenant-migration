@@ -29,7 +29,7 @@ Two tenants are required for this scenario. The first tenant will act as a
 
 ## Setup
 
-Both tenants require administrative access to setup this scenario.
+Both tenants require administrative access to set up this scenario.
  Tenant-specific configuration is described below.
 
 
@@ -92,67 +92,50 @@ _Note: all actions should be performed in the new tenant account._
 
 1. Create a new
    [custom database](https://auth0.com/docs/connections/database/migrating#enable-automatic-migration)
+   and set it up for automatic user account migration.
 
 2. In the new database settings, go to "Custom database" section and fill the
    following settings at the bottom of the page with the values obtained
    during the old tenant setup at step 2:
 
    * `domain` - set to the client "Domain" prefixed with "https".
-     For example `https://old-tenant.auth0.com`
+     For example `https://old-tenant.auth0.com`.
    * `client_id` - set to "Client ID".
    * `client_secret` - set to "Client Secret".
 
-3. 
+3. Clone this repository and rename the database name subfolder
+   `artex-old-import` to match the database name you created in step 1.
 
+4. In the new tenant, install and configure the
+   [github deployments](https://auth0.com/docs/extensions/github-deploy)
+   extension to point to the cloned repository. This way any changes in the
+   source code will be deployed automatically.
 
-
-Setup custom db
-Setup custom DB settings
-Setup api client for custom db
-Setup github extension or deploy scripts manually
+5. Trigger a deployment manually or by pushing changes to github and ensure
+   that the database "Login" and "GetUser" scripts were deployed.
 
 
 ## Usage
 
-Get a client app for the custom db
+Connect a client to the new tenant's database and try to log in with an user
+ that exists only in the old tenant. If everything was done correctly - the
+ user should be able to log in successfully. After this event his full profile
+ should be imported automatically to the new database.
 
 
 ## Further development
 
-User Ids need to be fixed manually
+When a user is saved in Auth0 database, the system adds the `auth0|` prefix to
+ his ID, however if such prefix is already present - it gets duplicated which
+ essentially changes user's ID. This behavior may break existing clients which
+ rely on user ID to store additional data in their internal database. To
+ workaround this, the Login script strips the prefix from user ID on profile
+ import.
 
-Reset password by email does a fuzzy search :(
-
-
-
-
-# Notes
-
-The password are hashed and cannot be exported, so users migrate over time when they log in. Inactive users that never log in will not be migrated using this method.
-
-# Deployment
-
-For the purposes of this demo:
-Old tenant: artex-old
-New tenant: artex-new
-
-* Create two tenants
-* In the old tenant, create a non-interactive client, connect it to the management API and grant read permissions for users and users app metadata
-* For newly created client in prev step:
-	* set the "Token endpoint authentication" to "Basic",
-	* in advanced settings, modify grant types to include only "Client credentials"
-* In the new tenant, create a custom database connection and set it to import users to Auth0
-* Clone this repository to your own on github
-* Adjust the naming of connection folders to match the custom database connection name
-* In the new tenant, install the `github-deployments` extension
-* Configure to deploy from the cloned repository
-
-Demo
-
-* Make sure the old tenant has a few users
-* Adjust configuration for the included ASP.NET Core project to use the new tenant
-* Run and try to log in with an user existing in the old tenant - it should be migrated automatically
-
-## Remarks
-
-Another source control system can be used or all scripts can be deployed manually
+The reset password feature requires an exact search by email. The current
+ implementation of the "GetUser" script uses an API whose search is based
+ on Lucene search syntax and it does not allow exact match specification.
+ Essentially this means that searching for `a@example.com` potentially can
+ match `aa@example.com` as well. To minimize the impact of such behavior, the
+ "GetUser" script performs a check and if an incorrect user profile was found
+ it raises an error. For end user this may fail the password reset flow.
