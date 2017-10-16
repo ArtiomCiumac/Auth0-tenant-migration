@@ -1,10 +1,7 @@
 function getByEmail(name, callback) {
     // dependencies
 
-    const Promise = require('bluebird@3.5.0');
     const rp = require('request-promise@1.0.2');
-    const jwt = require('jsonwebtoken@7.1.9');
-    const jwks = require('jwks-rsa@1.1.1');
 
     // helpers
 
@@ -50,32 +47,10 @@ function getByEmail(name, callback) {
         return token;
     }
 
-    function getSigningKey(keyId) {
-        return new Promise((resolve, reject) => {
-            const jwksClient = jwks({
-                jwksUri: configuration.domain + '/.well-known/jwks.json'
-            });
-
-            jwksClient.getSigningKey(keyId, function (err, key) {
-                if (err) return reject(err);
-                return resolve(key.publicKey || key.rsaPublicKey);
-            });
-        })
-    }
-
     // actual execution flow
 
     rp(getTokenRequestOptions())
-        .then(res => {
-            const accessToken = res.access_token;
-
-            return Promise.resolve(jwt.decode(accessToken, { complete: true }))
-                .then(t => validateTokenHeader(t))
-                .then(t => getSigningKey(t.header.kid))
-                .then(k => jwt.verify(accessToken, k, { algorithms: ['RS256'] }))
-                .then(() => accessToken);
-        })
-        .then(accessToken => rp(getUsersRequestOptions(accessToken)))
+        .then(res => rp(getUsersRequestOptions(res.access_token)))
         .then(res => {
             if (!res || !res.length ||
                 res.length === 0 || res[0].email !== name) {

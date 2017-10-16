@@ -99,13 +99,7 @@ function login(email, password, callback) {
         .then(p => p.sub)
         .then(id => {
             return rp(getClientCredentialsRequestOptions())
-                .then(res => {
-                    const accessToken = res.access_token;
-
-                    return decodeAndVerifyToken(accessToken)
-                        .then(() => accessToken);
-                })
-                .then(accessToken => rp(getUserProfileRequestOptions(id, accessToken)));
+                .then(res => rp(getUserProfileRequestOptions(id, res.access_token)));
         })
         .then(p => patchUserId(p))
         .then(p => callback(null, p))
