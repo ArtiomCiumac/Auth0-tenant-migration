@@ -9,14 +9,15 @@ For security purposes, hashed passwords cannot be exported from the system,
  passwords.
 
 To achieve this, a custom connection database can be created in the new tenant
- and works in [migration mode](https://auth0.com/docs/connections/database/migrating)
+ that works in [migration mode](https://auth0.com/docs/connections/database/migrating)
  to connect programmatically to the old tenant. This way consumer apps can be
- redirected to the new tenant and users can log in as before.
+ redirected to the new tenant and users can log in as before without
+ interruption.
 
-Note that the users in the old tenant will not be affected. While old tenant
- remains fully functional, it is not recommended to perform any updates on
- the users who were already imported as their state will diverge. To avoid
- all old tenant consumer clients should be redirected to the new tenant.
+Note that the users records in the old tenant will not be affected. While old
+ tenant remains fully functional, it is not recommended to perform any updates
+ on the users who were already imported as their state will diverge. To avoid
+ this all old tenant consumer clients should be redirected to the new tenant.
 
 
 ## Prerequisites
